@@ -1,0 +1,83 @@
+# Serverless Framework v3 — ライフログ蓄積（Slack / EventBridge / Lambda）
+service: koei-clone
+
+frameworkVersion: '3'
+
+# デプロイ時に .env を読み、${env:...} を解決する（Lambda の環境変数に載る）
+useDotenv: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-northeast-1'}
+  memorySize: 256
+  timeout: 30
+  environment:
+    SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET, ''}
+    SLACK_BOT_TOKEN: ${env:SLACK_BOT_TOKEN, ''}
+    GEMINI_API_KEY: ${env:GEMINI_API_KEY, ''}
+    # 省略時はコード内デフォルト（gemini-2.5-flash-lite / gemini-embedding-2-preview）
+    GEMINI_CHAT_MODEL: ${env:GEMINI_CHAT_MODEL, ''}
+    GEMINI_EMBEDDING_MODEL: ${env:GEMINI_EMBEDDING_MODEL, ''}
+    GEMINI_EMBEDDING_OUTPUT_DIMENSION: ${env:GEMINI_EMBEDDING_OUTPUT_DIMENSION, '1536'}
+    SUPABASE_URL: ${env:SUPABASE_URL, ''}
+    SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY, ''}
+    # 日次プロンプト先（チャンネル ID または DM のユーザー ID）
+    DAILY_PROMPT_TARGET_ID: ${env:DAILY_PROMPT_TARGET_ID, ''}
+    # true の場合 DM、false の場合チャンネル投稿（実装側で解釈）
+    DAILY_PROMPT_USE_DM: ${env:DAILY_PROMPT_USE_DM, 'false'}
+
+package:
+  individually: true
+
+functions:
+  # Slack Events API（URL 検証・メッセージ受信 → Supabase へ保存の入口）
+  receiver:
+    handler: src/handlers/receiver.handler
+    description: Slack Events API receiver (Bolt + AwsLambdaReceiver)
+    events:
+      - http:
+          path: slack/events
+          method: post
+          cors: false
+
+  # 決まった時刻に問いかけ（EventBridge スケジュール・JST 朝8時・夜22時）
+  scheduler:
+    handler: src/handlers/scheduler.handler
+    description: Daily prompt via Slack (EventBridge cron)
+    timeout: 60
+    events:
+      - schedule:
+          # JST 08:00 (= UTC 前日 23:00)
+          rate: cron(0 23 * * ? *)
+          enabled: true
+      - schedule:
+          # JST 22:00 (= UTC 13:00)
+          rate: cron(0 13 * * ? *)
+          enabled: true
+
+  # 要約・埋め込み生成バッチ（1 日 1 回・embedding が null の行を最大 10 件/回）
+  processor:
+    handler: src/handlers/processor.handler
+    description: Summary + embedding backfill for daily_thought_logs
+    timeout: 120
+    memorySize: 512
+    events:
+      - schedule:
+          # JST 03:00 頃（UTC 18:00）。変えたいときは cron を調整
+          rate: cron(0 18 * * ? *)
+          enabled: true
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    concurrency: 10

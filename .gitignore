@@ -1,0 +1,7 @@
+node_modules
+.env
+.env.*
+!.env.example
+
+# Serverless Framework（デプロイ成果物・ZIP）
+.serverless
