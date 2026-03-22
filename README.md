@@ -140,7 +140,8 @@ Slack の Request URL には ngrok 等でローカルにトンネルを張り、
 | `GEMINI_API_KEY` | Google Gemini API |
 | `SUPABASE_URL` | Supabase プロジェクト URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase サーバー側書き込み用キー（サーバーのみで保持） |
-| `SLACK_DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
+| `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
+| `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
 
 ### コマンド一覧
 

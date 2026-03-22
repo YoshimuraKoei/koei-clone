@@ -99,7 +99,7 @@ sequenceDiagram
   EB->>Lambda: スケジュール発火
   Lambda->>Gemini: プロンプト生成（問いかけ文）
   Gemini-->>Lambda: テキスト
-  Lambda->>Slack: chat.postMessage（チャンネル or DM）
+  Lambda->>Slack: chat.postMessage（チャンネル）
 ```
 
 ## シーケンス: 後処理バッチ（processor）
@@ -146,7 +146,8 @@ erDiagram
 | `SLACK_SIGNING_SECRET` / `SLACK_BOT_TOKEN` | Slack 署名検証・API 呼び出し |
 | `GEMINI_API_KEY` | Gemini（問い生成・要約・埋め込み） |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase へのサーバーサイドアクセス |
-| `SLACK_DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
+| `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
+| `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
 
 ## 補足: 将来の拡張
 
