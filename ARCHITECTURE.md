@@ -61,8 +61,6 @@ flowchart TB
   R2 --> L3
 ```
 
-（`subgraph` タイトルやラベルに **`→`（U+2192）を入れると**、環境によっては矢印トークンと衝突して **syntax error** になります。`<br/>` や `...` もレンダラによっては不安定なので、上記のように **ASCII とスラッシュ区切り**にしています。）
-
 ## シーケンス: Slack メッセージ受信（receiver）
 
 Slack は Events API で HTTP POST する。Bolt（`AwsLambdaReceiver`）が署名検証とルーティングを行い、ハンドラ内で Supabase へ保存する（実装はスケルトン含む）。
@@ -84,7 +82,6 @@ sequenceDiagram
     Bolt->>SB: daily_thought_logs へ保存
     Bolt->>Slack: chat.postMessage 等（応答）
   end
-  Note over Lambda,Slack: 現状の receiver は Gemini を呼ばない。応答文の生成や要約は processor や将来の Worker で行う想定。
 ```
 
 ## シーケンス: 定時の問いかけ（scheduler）
@@ -149,8 +146,7 @@ erDiagram
 | `SLACK_SIGNING_SECRET` / `SLACK_BOT_TOKEN` | Slack 署名検証・API 呼び出し |
 | `GEMINI_API_KEY` | Gemini（問い生成・要約・埋め込み） |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase へのサーバーサイドアクセス |
-| `DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
-| `DAILY_PROMPT_USE_DM` | DM かチャンネルかの切り替え用（実装側で解釈） |
+| `SLACK_DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
 
 ## 補足: 将来の拡張
 

@@ -1,4 +1,5 @@
 import type { AwsCallback, AwsEvent, AwsResponse } from '@slack/bolt/dist/receivers/AwsLambdaReceiver';
+import { notifyOpsError } from '../lib/opsAlert';
 import { createAwsLambdaReceiver, createSlackApp } from '../lib/slack';
 import { insertDailyThoughtLog } from '../lib/supabase';
 
@@ -29,7 +30,7 @@ app.message(async ({ message, say, body }) => {
 
   const eventId = body.event_id;
   if (!eventId) {
-    console.warn('Slack body.event_id missing; duplicate prevention disabled');
+    console.error('receiver: Slack body.event_id が未設定です。二重登録防止が無効です。');
   }
 
   try {
@@ -41,19 +42,30 @@ app.message(async ({ message, say, body }) => {
       slack_event_id: eventId ?? null,
     });
     if (duplicate) {
-      console.log('duplicate Slack event_id, skip insert and reply', eventId);
+      console.log('receiver: 同一 Slack event_id が存在するため、保存をスキップします。', eventId);
       return;
     }
   } catch (e) {
     console.error(e);
-    await say({ text: '保存に失敗しました。', thread_ts: replyThreadTs });
+    await notifyOpsError({ functionName: 'receiver', error: e, hint: 'Supabase insert 失敗' });
+    try {
+      await say({ text: '保存に失敗しました。', thread_ts: replyThreadTs });
+    } catch (sayErr) {
+      console.error(sayErr);
+      await notifyOpsError({ functionName: 'receiver', error: sayErr, hint: 'Slack への返信に失敗しました。（insert エラー後）' });
+    }
     return;
   }
 
-  await say({
-    text: '記録しました（スケルトン応答）',
-    thread_ts: replyThreadTs,
-  });
+  try {
+    await say({
+      text: '記録しといた。',
+      thread_ts: replyThreadTs,
+    });
+  } catch (e) {
+    console.error(e);
+    await notifyOpsError({ functionName: 'receiver', error: e, hint: 'Slack への返信に失敗しました。（記録成功後）' });
+  }
 });
 
 type BoltLambdaHandler = (event: AwsEvent, context: unknown, callback: AwsCallback) => Promise<AwsResponse>;
@@ -68,5 +80,11 @@ export const handler = async (
   if (!boltHandler) {
     boltHandler = await awsLambdaReceiver.start();
   }
-  return boltHandler(event, context, callback);
+  try {
+    return await boltHandler(event, context, callback);
+  } catch (e) {
+    console.error(e);
+    await notifyOpsError({ functionName: 'receiver', error: e });
+    throw e;
+  }
 };

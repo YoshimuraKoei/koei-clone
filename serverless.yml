@@ -15,8 +15,9 @@ provider:
   runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'ap-northeast-1'}
-  memorySize: 256
+  memorySize: 256   # 単位は MB
   timeout: 30
+  logRetentionInDays: 3   # ログの保持期間は 3 日間
   environment:
     SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET, ''}
     SLACK_BOT_TOKEN: ${env:SLACK_BOT_TOKEN, ''}
@@ -27,10 +28,8 @@ provider:
     GEMINI_EMBEDDING_OUTPUT_DIMENSION: ${env:GEMINI_EMBEDDING_OUTPUT_DIMENSION, '1536'}
     SUPABASE_URL: ${env:SUPABASE_URL, ''}
     SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY, ''}
-    # 日次プロンプト先（チャンネル ID または DM のユーザー ID）
-    DAILY_PROMPT_TARGET_ID: ${env:DAILY_PROMPT_TARGET_ID, ''}
-    # true の場合 DM、false の場合チャンネル投稿（実装側で解釈）
-    DAILY_PROMPT_USE_DM: ${env:DAILY_PROMPT_USE_DM, 'false'}
+    SLACK_DAILY_CHANNEL_ID: ${env:SLACK_DAILY_CHANNEL_ID, ''}   # 定時投稿先（プライベートチャンネル等のチャンネル ID）
+    SLACK_OPS_CHANNEL_ID: ${env:SLACK_OPS_CHANNEL_ID, ''}   # 運用アラート用（未設定なら通知スキップ）
 
 package:
   individually: true
@@ -66,7 +65,7 @@ functions:
     handler: src/handlers/processor.handler
     description: Summary + embedding backfill for daily_thought_logs
     timeout: 120
-    memorySize: 512
+    memorySize: 512   # processor は処理が多いためメモリを増やす
     events:
       - schedule:
           # JST 03:00 頃（UTC 18:00）。変えたいときは cron を調整

@@ -22,7 +22,10 @@
 
 <br />
 <div align="right">
-    <a href="ARCHITECTURE.md"><strong>アーキテクチャ（Mermaid） »</strong></a>
+    <a href="ARCHITECTURE.md"><strong>アーキテクチャ »</strong></a>
+</div>
+<div align="right">
+    <a href="docs/cost.md"><strong>コスト見積もり »</strong></a>
 </div>
 <br />
 <div align="right">
@@ -137,7 +140,7 @@ Slack の Request URL には ngrok 等でローカルにトンネルを張り、
 | `GEMINI_API_KEY` | Google Gemini API |
 | `SUPABASE_URL` | Supabase プロジェクト URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase サーバー側書き込み用キー（サーバーのみで保持） |
-| `DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
+| `SLACK_DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
 
 ### コマンド一覧
 
