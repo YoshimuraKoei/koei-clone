@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/-Serverless-FD5750.svg?logo=serverless&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Slack-4A154B.svg?logo=slack&style=for-the-badge&logoColor=white">
   <img src="https://img.shields.io/badge/-Supabase-3FCF8E.svg?logo=supabase&style=for-the-badge&logoColor=white">
-  <img src="https://img.shields.io/badge/-Gemini-4285F4.svg?logo=google&style=for-the-badge&logoColor=white">
+  <img src="https://img.shields.io/badge/-Vertex%20AI-4285F4.svg?logo=googlecloud&style=for-the-badge&logoColor=white">
 </p>
 
 ## 目次
@@ -38,13 +38,14 @@ koei-clone
 
 ## 概要
 
-Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将来の **ファインチューニング** や **RAG** に使える形式で保存するための **サーバーレス** バックエンドです。
+Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将来の **ファインチューニング** や **RAG** に使える形式で保存するための **サーバーレス** バックエンドです。生成と埋め込みは **Vertex AI** を使い、利用状況は **Cloud Monitoring** から集計して Slack に通知します。
 
 **AWS Lambda**（Serverless Framework v3）で以下を実行します。
 
 - **receiver**: Slack Events API（メッセージ受信・保存）
-- **scheduler**: 定時の問いかけ（Gemini で文面生成 → Slack 投稿）
+- **scheduler**: 定時の問いかけ（Vertex AI で文面生成 → Slack 投稿）
 - **processor**: 要約・埋め込みベクトル付与（**1 日 1 回**・未処理最大 10 件/回）
+- **opsReporter**: Cloud Monitoring から Vertex AI 利用状況を集計し、運用保守チャンネルへ定期投稿
 
 詳細は [ARCHITECTURE.md](ARCHITECTURE.md) を参照してください。
 
@@ -70,8 +71,9 @@ flowchart LR
     PRO[Lambda: processor]
   end
 
-  subgraph google["Google"]
-    G[Gemini API]
+  subgraph google["Google Cloud"]
+    G[Vertex AI]
+    M[Cloud Monitoring]
   end
 
   subgraph data["データ"]
@@ -87,6 +89,7 @@ flowchart LR
   SCH --> G
   PRO --> SB
   PRO --> G
+  EB --> M
 ```
 
 ## 環境
@@ -107,22 +110,31 @@ flowchart LR
 .
 ├── ARCHITECTURE.md
 ├── README.md
+├── README_TEMPLATE.md
+├── .env.example
 ├── serverless.cloudwatch.yml
 ├── serverless.yml
 ├── package.json
 ├── package-lock.json
-├── .env
 ├── tsconfig.json
+├── docs
+│   ├── core-image.md
+│   ├── cost.md
+│   ├── input.md
+│   └── task.md
 ├── sql
 │   ├── 001_create_daily_thought_logs.sql
 │   └── 002_add_slack_event_id.sql
 └── src
     ├── handlers
+    │   ├── opsReporter.ts
     │   ├── processor.ts
     │   ├── receiver.ts
     │   └── scheduler.ts
     └── lib
         ├── gemini.ts
+        ├── googleCloud.ts
+        ├── googleMonitoring.ts
         ├── opsAlert.ts
         ├── slack.ts
         └── supabase.ts
@@ -134,9 +146,9 @@ flowchart LR
 
 ### 前提
 
-- Node.js 20 以上（AWS Lambda の実行環境は **22.x** / `nodejs22.x`）
+- Node.js 22 以上（AWS Lambda の実行環境は **22.x** / `nodejs22.x`）
 - AWS アカウントへデプロイする場合: AWS CLI の設定、および Serverless Framework の利用可能な認証情報
-- Slack アプリ、Supabase プロジェクト、Gemini API キー
+- Slack アプリ、Supabase プロジェクト、Google Cloud プロジェクト（Vertex AI と Cloud Monitoring を有効化）
 
 ### Slack
 
@@ -146,7 +158,6 @@ flowchart LR
     - Bot User Oauth Token の取得
 - OAuth & Permissions:
     - ボットトークンのスコープ設定: `chat:write`, `groups:history`
-    - ユーザートークンのスコープ設定: `groups:history`
 - Event Subscriptions:
     - Request URL に API Gateway の URL を入れる
     - Subscribe to bot events: `message.groups`
@@ -163,9 +174,13 @@ flowchart LR
     - Data API → API URL を取得
     - API Keys → service role key を取得
 
-### Gemini
+### Google Cloud / Vertex AI
 
-- Gemini API キーを発行
+- Google Cloud プロジェクトを作成
+- `Vertex AI API` と `Cloud Monitoring API` を有効化
+- Vertex AI 呼び出しと Monitoring 閲覧ができるサービスアカウントを作成
+- サービスアカウントキー JSON を取得し、`GCP_SERVICE_ACCOUNT_JSON` に 1 行 JSON として設定
+- `GCP_PROJECT_ID` と `VERTEX_AI_LOCATION` を控える
 
 ### パッケージインストール
 
@@ -190,7 +205,9 @@ npm run deploy
 | ------ | ---- |
 | `SLACK_SIGNING_SECRET` | Slack リクエストの署名検証 |
 | `SLACK_BOT_TOKEN` | Slack Web API（投稿など） |
-| `GEMINI_API_KEY` | Google Gemini API |
+| `GCP_PROJECT_ID` | Vertex AI / Cloud Monitoring を使う Google Cloud プロジェクト ID |
+| `GCP_SERVICE_ACCOUNT_JSON` | Vertex AI / Cloud Monitoring 呼び出し用サービスアカウントキー JSON |
+| `VERTEX_AI_LOCATION` | Vertex AI のロケーション（例: `us-central1`, `global`） |
 | `SUPABASE_URL` | Supabase プロジェクト URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase サーバー側書き込み用キー（サーバーのみで保持） |
 | `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |

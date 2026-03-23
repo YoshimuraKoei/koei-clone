@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -11,13 +11,13 @@
     "offline": "serverless offline"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
     "@slack/bolt": "^3.22.0",
-    "@supabase/supabase-js": "^2.49.0"
+    "@supabase/supabase-js": "^2.49.0",
+    "google-auth-library": "^9.15.1"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
-    "@types/node": "^20.17.0",
+    "@types/node": "^22.13.10",
     "serverless": "^3.40.0",
     "serverless-esbuild": "^1.54.0",
     "serverless-offline": "^13.9.0",

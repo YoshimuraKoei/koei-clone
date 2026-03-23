@@ -1,6 +1,6 @@
 # アーキテクチャ
 
-ライフログ蓄積システム（Slack 対話 → Supabase 保存、定時プロンプト、後処理バッチ）の構成をまとめる。
+ライフログ蓄積システム（Slack 対話 → Supabase 保存、Vertex AI による生成 / 埋め込み、Cloud Monitoring 集計、定時運用通知）の構成をまとめる。
 
 ## システム・コンテキスト
 
@@ -20,10 +20,12 @@ flowchart LR
     R[Lambda: receiver]
     SCH[Lambda: scheduler]
     PRO[Lambda: processor]
+    OPR[Lambda: opsReporter]
   end
 
-  subgraph google["Google"]
-    G[Gemini API]
+  subgraph google["Google Cloud"]
+    V[Vertex AI]
+    M[Cloud Monitoring]
   end
 
   subgraph data["データ"]
@@ -34,11 +36,14 @@ flowchart LR
   S -->|POST /slack/events| APIGW --> R
   EB --> SCH
   EB --> PRO
+  EB --> OPR
   R --> SB
   SCH --> S
-  SCH --> G
+  SCH --> V
   PRO --> SB
-  PRO --> G
+  PRO --> V
+  OPR --> M
+  OPR --> S
 ```
 
 ## AWS 上のコンポーネント（デプロイ単位）
@@ -52,13 +57,16 @@ flowchart TB
     L1[receiver]
     L2[scheduler]
     L3[processor]
+    L4[opsReporter]
     R1["EventBridge cron JST 8 and 22"]
     R2["EventBridge cron daily processor"]
+    R3["EventBridge cron daily ops report"]
   end
 
   AG --> L1
   R1 --> L2
   R2 --> L3
+  R3 --> L4
 ```
 
 ## シーケンス: Slack メッセージ受信（receiver）
@@ -86,19 +94,19 @@ sequenceDiagram
 
 ## シーケンス: 定時の問いかけ（scheduler）
 
-EventBridge のスケジュールで Lambda が起動し、Gemini で問い文を生成してから Slack に投稿する。
+EventBridge のスケジュールで Lambda が起動し、Vertex AI で問い文を生成してから Slack に投稿する。
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant EB as EventBridge
   participant Lambda as Lambda scheduler
-  participant Gemini as Gemini API
+  participant Vertex as Vertex AI
   participant Slack
 
   EB->>Lambda: スケジュール発火
-  Lambda->>Gemini: プロンプト生成（問いかけ文）
-  Gemini-->>Lambda: テキスト
+  Lambda->>Vertex: generateContent（問いかけ文）
+  Vertex-->>Lambda: テキスト
   Lambda->>Slack: chat.postMessage（チャンネル）
 ```
 
@@ -112,13 +120,31 @@ sequenceDiagram
   participant EB as EventBridge
   participant Lambda as Lambda processor
   participant SB as Supabase
-  participant Gemini as Gemini API
+  participant Vertex as Vertex AI
 
   EB->>Lambda: スケジュール発火（1 日 1 回）
   Lambda->>SB: embedding 未設定行の取得 等
-  Lambda->>Gemini: 要約 / 埋め込み用テキスト処理
-  Gemini-->>Lambda: 要約・ベクトル
+  Lambda->>Vertex: generateContent / embedContent
+  Vertex-->>Lambda: 要約・ベクトル
   Lambda->>SB: summary / embedding 更新
+```
+
+## シーケンス: 利用状況の定期通知（opsReporter）
+
+EventBridge のスケジュールで Lambda が起動し、Cloud Monitoring から Vertex AI の利用メトリクスを集計して Slack の運用保守チャンネルへ投稿する。
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant EB as EventBridge
+  participant Lambda as Lambda opsReporter
+  participant CM as Cloud Monitoring
+  participant Slack
+
+  EB->>Lambda: スケジュール発火（1 日 1 回）
+  Lambda->>CM: timeSeries.list（requests / tokens / quota exceeded）
+  CM-->>Lambda: モデル別メトリクス
+  Lambda->>Slack: chat.postMessage（運用保守チャンネル）
 ```
 
 ## データストア（Supabase）
@@ -144,7 +170,8 @@ erDiagram
 | 変数 | 用途 |
 |------|------|
 | `SLACK_SIGNING_SECRET` / `SLACK_BOT_TOKEN` | Slack 署名検証・API 呼び出し |
-| `GEMINI_API_KEY` | Gemini（問い生成・要約・埋め込み） |
+| `GCP_PROJECT_ID` / `GCP_SERVICE_ACCOUNT_JSON` | Vertex AI / Cloud Monitoring を呼ぶ Google Cloud 認証情報 |
+| `VERTEX_AI_LOCATION` | Vertex AI のロケーション |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase へのサーバーサイドアクセス |
 | `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
 | `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
@@ -156,11 +183,11 @@ erDiagram
 
 ### 第一段階: アプリ内 → Slack 運用チャンネル
 
-各 Lambda の `try/catch`（またはエラー分岐）から **`notifyOpsError`** を呼び、運用保守用の Slack チャンネルにエラーメッセージを送信する。Gemini / Supabase / Slack API の失敗など、**処理の途中まで到達した例外**を主に想定する。
+各 Lambda の `try/catch`（またはエラー分岐）から **`notifyOpsError`** を呼び、運用保守用の Slack チャンネルにエラーメッセージを送信する。Vertex AI / Cloud Monitoring / Supabase / Slack API の失敗など、**処理の途中まで到達した例外**を主に想定する。
 
 ```mermaid
 flowchart LR
-  subgraph fn["Lambda（receiver / scheduler / processor）"]
+  subgraph fn["Lambda（receiver / scheduler / processor / opsReporter）"]
     A[ハンドラ]
     B[try / catch]
     N["notifyOpsError"]
@@ -211,7 +238,7 @@ flowchart TB
   TOP --> GM
 ```
 
-**6 本のアラーム**（関数 × 種別）のイメージ:
+**6 本のアラーム**（receiver / scheduler / processor の 3 関数 × 2 種別）のイメージ:
 
 ```mermaid
 flowchart TB

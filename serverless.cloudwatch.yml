@@ -103,6 +103,26 @@ Resources:
           MetricName: ProcessorTimeout
           MetricValue: '1'
 
+  OpsReporterTimeoutMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      FilterPattern: '"Task timed out"'
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: OpsReporterTimeout
+          MetricValue: '1'
+
+  OpsReporterTimeoutMetricFilterReportLine:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      FilterPattern: Status timeout
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: OpsReporterTimeout
+          MetricValue: '1'
+
   # --- OOM（heap out of memory）---
   ReceiverOOMMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -132,6 +152,16 @@ Resources:
       MetricTransformations:
         - MetricNamespace: KoeiClone/Phase2
           MetricName: ProcessorOOM
+          MetricValue: '1'
+
+  OpsReporterOOMMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      FilterPattern: heap out of memory
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: OpsReporterOOM
           MetricValue: '1'
 
   ReceiverTimeoutAlarm:
@@ -182,6 +212,22 @@ Resources:
       AlarmActions:
         - Ref: OpsAlertTopic
 
+  OpsReporterTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-opsReporter-timeout
+      AlarmDescription: Lambda opsReporter Task timed out（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: OpsReporterTimeout
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
   ReceiverOOMAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -221,6 +267,22 @@ Resources:
       AlarmDescription: Lambda processor heap OOM 疑い（第二段階）
       Namespace: KoeiClone/Phase2
       MetricName: ProcessorOOM
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  OpsReporterOOMAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-opsReporter-oom
+      AlarmDescription: Lambda opsReporter heap OOM 疑い（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: OpsReporterOOM
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1

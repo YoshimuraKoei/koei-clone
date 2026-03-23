@@ -5,7 +5,7 @@ import { formatVectorForPg, getSupabaseClient } from '../lib/supabase';
 
 /**
  * 要約（未設定時）と埋め込みベクトルを付与するバッチ。
- * EventBridge で 1 日 1 回（serverless.yml の cron）。1 回最大 10 件。GEMINI_API_KEY 必須。
+ * EventBridge で 1 日 1 回（serverless.yml の cron）。1 回最大 10 件。Vertex AI の認証情報必須。
  */
 export const handler: Handler = async () => {
   try {

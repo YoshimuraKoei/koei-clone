@@ -23,11 +23,9 @@ provider:
   environment:
     SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET, ''}
     SLACK_BOT_TOKEN: ${env:SLACK_BOT_TOKEN, ''}
-    GEMINI_API_KEY: ${env:GEMINI_API_KEY, ''}
-    # 省略時はコード内デフォルト（gemini-2.5-flash-lite / gemini-embedding-2-preview）
-    GEMINI_CHAT_MODEL: ${env:GEMINI_CHAT_MODEL, ''}
-    GEMINI_EMBEDDING_MODEL: ${env:GEMINI_EMBEDDING_MODEL, ''}
-    GEMINI_EMBEDDING_OUTPUT_DIMENSION: ${env:GEMINI_EMBEDDING_OUTPUT_DIMENSION, '1536'}
+    GCP_PROJECT_ID: ${env:GCP_PROJECT_ID, ''}
+    GCP_SERVICE_ACCOUNT_JSON: ${env:GCP_SERVICE_ACCOUNT_JSON, ''}
+    VERTEX_AI_LOCATION: ${env:VERTEX_AI_LOCATION, 'us-central1'}
     SUPABASE_URL: ${env:SUPABASE_URL, ''}
     SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY, ''}
     SLACK_DAILY_CHANNEL_ID: ${env:SLACK_DAILY_CHANNEL_ID, ''}   # 定時投稿先（プライベートチャンネル等のチャンネル ID）
@@ -75,6 +73,18 @@ functions:
       - schedule:
           # JST 03:00 頃（UTC 18:00）。変えたいときは cron を調整
           rate: cron(0 18 * * ? *)
+          enabled: true
+
+  # Google Cloud Monitoring から Vertex AI 利用状況を集計し、運用チャンネルへ定期投稿
+  opsReporter:
+    handler: src/handlers/opsReporter.handler
+    description: Weekly Vertex AI usage summary to Slack ops channel
+    reservedConcurrency: 5
+    timeout: 60
+    events:
+      - schedule:
+          # JST 火曜 00:00 (= UTC 月曜 15:00)
+          rate: cron(0 15 ? * MON *)
           enabled: true
 
 custom:
