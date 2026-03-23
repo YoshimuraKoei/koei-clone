@@ -2,6 +2,7 @@ import type { Handler } from 'aws-lambda';
 import { WebClient } from '@slack/web-api';
 import { generateWithFlash } from '../lib/gemini';
 import { notifyOpsError } from '../lib/opsAlert';
+import { buildPromptInstruction, selectPrompt } from '../lib/promptCatalog';
 
 /**
  * EventBridge スケジュール: 毎日の問いかけを Slack チャンネルへ投稿。
@@ -17,8 +18,8 @@ export const handler: Handler = async () => {
     }
 
     const client = new WebClient(token);
-    const prompt =
-      'あなたはユーザーの内省を促すコーチです。今日の問いを1つだけ、日本語で短く（1〜2文）返してください。フォーマットは「今日の問い：<問い>」です。';
+    const selection = selectPrompt(new Date());
+    const prompt = buildPromptInstruction(selection);
     const question = await generateWithFlash(prompt);
 
     await client.chat.postMessage({
