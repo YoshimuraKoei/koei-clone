@@ -10,11 +10,20 @@ const app = createSlackApp(awsLambdaReceiver);
  * Slack Events API: URL 検証は Bolt が処理。
  * ユーザーの発言をパースし、Supabase に保存する。`body.event_id` で再送時の二重登録を防ぐ。
  */
+const allowedChannels = (process.env.SLACK_ALLOWED_CHANNEL_IDS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.message(async ({ message, say, body }) => {
   if (message.subtype !== undefined) {
     return;
   }
   if ('bot_id' in message && message.bot_id) {
+    return;
+  }
+
+  if (allowedChannels.length > 0 && !allowedChannels.includes(message.channel)) {
     return;
   }
 

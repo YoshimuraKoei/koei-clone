@@ -32,6 +32,7 @@ provider:
     SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY, ''}
     SLACK_DAILY_CHANNEL_ID: ${env:SLACK_DAILY_CHANNEL_ID, ''}   # 定時投稿先（プライベートチャンネル等のチャンネル ID）
     SLACK_OPS_CHANNEL_ID: ${env:SLACK_OPS_CHANNEL_ID, ''}   # 運用アラート用（未設定なら通知スキップ）
+    SLACK_ALLOWED_CHANNEL_IDS: ${env:SLACK_ALLOWED_CHANNEL_IDS, ''}   # 受信対象チャンネル ID（カンマ区切り。未設定は全チャンネル受信）
 
 package:
   individually: true
