@@ -5,3 +5,5 @@ node_modules
 
 # Serverless Framework（デプロイ成果物・ZIP）
 .serverless
+
+README_TEMPLATE.md
