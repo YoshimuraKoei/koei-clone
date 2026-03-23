@@ -41,6 +41,7 @@ functions:
   receiver:
     handler: src/handlers/receiver.handler
     description: Slack Events API receiver (Bolt + AwsLambdaReceiver)
+    reservedConcurrency: 5
     events:
       - http:
           path: slack/events
@@ -51,6 +52,7 @@ functions:
   scheduler:
     handler: src/handlers/scheduler.handler
     description: Daily prompt via Slack (EventBridge cron)
+    reservedConcurrency: 5
     timeout: 60
     events:
       - schedule:
@@ -66,6 +68,7 @@ functions:
   processor:
     handler: src/handlers/processor.handler
     description: Summary + embedding backfill for daily_thought_logs
+    reservedConcurrency: 5
     timeout: 120
     memorySize: 512   # processor は処理が多いためメモリを増やす
     events:

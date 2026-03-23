@@ -5,7 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
  * gemini-embedding-2-preview は MRL で 768 / 1536 / 3072 等に切り替え可能。
  */
 
-/** daily_thought_logs.content の想定形 */
+
 export type ThoughtMessage = { role: 'user' | 'assistant' | 'system'; content: string };
 
 export type DailyThoughtLogContent = {
@@ -19,8 +19,7 @@ export type DailyThoughtLogRow = {
   content: DailyThoughtLogContent;
   embedding?: string | null;
   summary?: string | null;
-  /** Slack Events API の event_id（一意・再送時の重複 insert 防止） */
-  slack_event_id?: string | null;
+  slack_event_id?: string | null;   // 再送時の重複 insert 防止
 };
 
 let supabase: SupabaseClient | null = null;
@@ -48,9 +47,6 @@ function isUniqueViolation(error: { code?: string; message?: string }): boolean 
   return error.code === '23505' || /duplicate key|unique constraint/i.test(error.message ?? '');
 }
 
-/**
- * @returns duplicate が true のときは同一 slack_event_id が既にあり、insert しなかった（Slack 再送など）
- */
 export async function insertDailyThoughtLog(
   row: DailyThoughtLogRow
 ): Promise<{ duplicate: boolean }> {
