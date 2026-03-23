@@ -1,7 +1,9 @@
 # Serverless Framework v3 — ライフログ蓄積（Slack / EventBridge / Lambda）
+# Lambda: nodejs22.x（v3.40 の schema に未掲載のため configValidationMode: off。AWS 上のランタイムは問題なし）
 service: koei-clone
 
 frameworkVersion: '3'
+# configValidationMode: off
 
 # デプロイ時に .env を読み、${env:...} を解決する（Lambda の環境変数に載る）
 useDotenv: true
@@ -12,7 +14,7 @@ plugins:
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs22.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'ap-northeast-1'}
   memorySize: 256   # 単位は MB
@@ -77,6 +79,10 @@ custom:
     bundle: true
     minify: false
     sourcemap: true
-    target: node20
+    target: node22
     platform: node
     concurrency: 10
+
+# 第二段階: タイムアウト・OOM をログメトリクスで検知 → SNS → Gmail（OPS_ALERT_EMAIL）
+resources:
+  - ${file(serverless.cloudwatch.yml)}

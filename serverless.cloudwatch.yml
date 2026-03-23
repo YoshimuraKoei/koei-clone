@@ -1,0 +1,231 @@
+# serverless.yml の resources にマージする CloudWatch / SNS（第二段階：タイムアウト・OOM → Gmail）
+# 前提: 各 Lambda が一度は起動済みで /aws/lambda/... のロググループが存在すること（無いと初回デプロイで MetricFilter が失敗する場合あり）
+
+Conditions:
+  HasOpsAlertEmail:
+    Fn::Not:
+      - Fn::Equals:
+          - ${env:OPS_ALERT_EMAIL, '__UNSET__'}
+          - '__UNSET__'
+
+Resources:
+  OpsAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: koei-clone phase2 ops
+      TopicName: ${self:service}-${self:provider.stage}-ops-alerts
+
+  OpsAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - Ref: OpsAlertTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudWatchAlarms
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              Ref: OpsAlertTopic
+
+  OpsAlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasOpsAlertEmail
+    Properties:
+      TopicArn:
+        Ref: OpsAlertTopic
+      Protocol: email
+      Endpoint: ${env:OPS_ALERT_EMAIL, 'noop@example.com'}
+
+  # --- Timeout ---
+  # 文言はランタイムで変わる。JSON 側に「Task timed out」、REPORT 行は「Status: timeout」。
+  # どちらかで同じメトリクス名に載せる（複数フィルターは同一メトリクスに集約される）。
+  ReceiverTimeoutMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
+      FilterPattern: '"Task timed out"'
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ReceiverTimeout
+          MetricValue: '1'
+
+  ReceiverTimeoutMetricFilterReportLine:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
+      FilterPattern: Status timeout
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ReceiverTimeout
+          MetricValue: '1'
+
+  SchedulerTimeoutMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
+      FilterPattern: '"Task timed out"'
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: SchedulerTimeout
+          MetricValue: '1'
+
+  SchedulerTimeoutMetricFilterReportLine:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
+      FilterPattern: Status timeout
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: SchedulerTimeout
+          MetricValue: '1'
+
+  ProcessorTimeoutMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
+      FilterPattern: '"Task timed out"'
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ProcessorTimeout
+          MetricValue: '1'
+
+  ProcessorTimeoutMetricFilterReportLine:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
+      FilterPattern: Status timeout
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ProcessorTimeout
+          MetricValue: '1'
+
+  # --- OOM（heap out of memory）---
+  ReceiverOOMMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
+      FilterPattern: heap out of memory
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ReceiverOOM
+          MetricValue: '1'
+
+  SchedulerOOMMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
+      FilterPattern: heap out of memory
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: SchedulerOOM
+          MetricValue: '1'
+
+  ProcessorOOMMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
+      FilterPattern: heap out of memory
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: ProcessorOOM
+          MetricValue: '1'
+
+  ReceiverTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-receiver-timeout
+      AlarmDescription: Lambda receiver Task timed out（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: ReceiverTimeout
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  SchedulerTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-scheduler-timeout
+      AlarmDescription: Lambda scheduler Task timed out（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: SchedulerTimeout
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  ProcessorTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-processor-timeout
+      AlarmDescription: Lambda processor Task timed out（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: ProcessorTimeout
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  ReceiverOOMAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-receiver-oom
+      AlarmDescription: Lambda receiver heap OOM 疑い（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: ReceiverOOM
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  SchedulerOOMAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-scheduler-oom
+      AlarmDescription: Lambda scheduler heap OOM 疑い（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: SchedulerOOM
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  ProcessorOOMAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-processor-oom
+      AlarmDescription: Lambda processor heap OOM 疑い（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: ProcessorOOM
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
