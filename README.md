@@ -22,7 +22,10 @@
 
 <br />
 <div align="right">
-    <a href="ARCHITECTURE.md"><strong>アーキテクチャ（Mermaid） »</strong></a>
+    <a href="ARCHITECTURE.md"><strong>アーキテクチャ »</strong></a>
+</div>
+<div align="right">
+    <a href="docs/cost.md"><strong>コスト見積もり »</strong></a>
 </div>
 <br />
 <div align="right">
@@ -52,7 +55,7 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 
 | 言語・フレームワーク | バージョン（目安） |
 | ---------------------- | ------------------ |
-| Node.js                | 20.x               |
+| Node.js                | 22.x　　　　　　　　　|
 | TypeScript             | 5.7.x              |
 | Serverless Framework   | 3.40.x             |
 
@@ -92,7 +95,7 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 
 ### 前提
 
-- Node.js 20 以上
+- Node.js 20 以上（AWS Lambda の実行環境は **22.x** / `nodejs22.x`）
 - AWS アカウントへデプロイする場合: AWS CLI の設定、および Serverless Framework の利用可能な認証情報
 - Slack アプリ、Supabase プロジェクト、Gemini API キー
 
@@ -137,7 +140,9 @@ Slack の Request URL には ngrok 等でローカルにトンネルを張り、
 | `GEMINI_API_KEY` | Google Gemini API |
 | `SUPABASE_URL` | Supabase プロジェクト URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase サーバー側書き込み用キー（サーバーのみで保持） |
-| `DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
+| `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
+| `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
+| `OPS_ALERT_EMAIL` | 監視エラーの通知先メールアドレス |
 
 ### コマンド一覧
 

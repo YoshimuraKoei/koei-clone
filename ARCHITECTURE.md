@@ -61,8 +61,6 @@ flowchart TB
   R2 --> L3
 ```
 
-（`subgraph` タイトルやラベルに **`→`（U+2192）を入れると**、環境によっては矢印トークンと衝突して **syntax error** になります。`<br/>` や `...` もレンダラによっては不安定なので、上記のように **ASCII とスラッシュ区切り**にしています。）
-
 ## シーケンス: Slack メッセージ受信（receiver）
 
 Slack は Events API で HTTP POST する。Bolt（`AwsLambdaReceiver`）が署名検証とルーティングを行い、ハンドラ内で Supabase へ保存する（実装はスケルトン含む）。
@@ -84,7 +82,6 @@ sequenceDiagram
     Bolt->>SB: daily_thought_logs へ保存
     Bolt->>Slack: chat.postMessage 等（応答）
   end
-  Note over Lambda,Slack: 現状の receiver は Gemini を呼ばない。応答文の生成や要約は processor や将来の Worker で行う想定。
 ```
 
 ## シーケンス: 定時の問いかけ（scheduler）
@@ -102,7 +99,7 @@ sequenceDiagram
   EB->>Lambda: スケジュール発火
   Lambda->>Gemini: プロンプト生成（問いかけ文）
   Gemini-->>Lambda: テキスト
-  Lambda->>Slack: chat.postMessage（チャンネル or DM）
+  Lambda->>Slack: chat.postMessage（チャンネル）
 ```
 
 ## シーケンス: 後処理バッチ（processor）
@@ -149,10 +146,99 @@ erDiagram
 | `SLACK_SIGNING_SECRET` / `SLACK_BOT_TOKEN` | Slack 署名検証・API 呼び出し |
 | `GEMINI_API_KEY` | Gemini（問い生成・要約・埋め込み） |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase へのサーバーサイドアクセス |
-| `DAILY_PROMPT_TARGET_ID` | 定時投稿先（チャンネル ID またはユーザー ID） |
-| `DAILY_PROMPT_USE_DM` | DM かチャンネルかの切り替え用（実装側で解釈） |
+| `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
+| `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
+| `OPS_ALERT_EMAIL` | （任意）第二段階: タイムアウト・OOM の CloudWatch アラームを SNS 経由で受け取る Gmail。`serverless.cloudwatch.yml` で定義 |
 
-## 補足: 将来の拡張
+## エラーハンドリング
 
-- **Receiver を即応答専用にし、重い処理を別 Lambda（Worker）へ非同期 Invoke**すると、Slack の 3 秒制限と負荷分散に有利（`docs/core-image.md` の構成に近づく）。
-- **埋め込み次元**は利用モデル（例: 768 / 1536）と `vector(n)` を一致させること。
+アプリ内で拾える失敗は **Slack 運用チャンネル**、Lambda の外側でしか拾えない失敗（タイムアウト・OOM など）は **Gmail（SNS）** に分ける。
+
+### 第一段階: アプリ内 → Slack 運用チャンネル
+
+各 Lambda の `try/catch`（またはエラー分岐）から **`notifyOpsError`** を呼び、運用保守用の Slack チャンネルにエラーメッセージを送信する。Gemini / Supabase / Slack API の失敗など、**処理の途中まで到達した例外**を主に想定する。
+
+```mermaid
+flowchart LR
+  subgraph fn["Lambda（receiver / scheduler / processor）"]
+    A[ハンドラ]
+    B[try / catch]
+    N["notifyOpsError"]
+  end
+  subgraph slack["Slack"]
+    CH["運用チャンネル<br/>SLACK_OPS_CHANNEL_ID"]
+  end
+  A --> B
+  B -->|"throw や API 失敗"| N
+  N -->|"chat.postMessage"| CH
+```
+
+**届きにくい例（第一段階だけでは足りない）**
+
+- **タイムアウト** … 実行が打ち切られ、`notifyOpsError` まで到達しないことがある。
+- **OOM** … プロセスが落ちるため同様。
+
+### 第二段階: CloudWatch Logs → メトリクス → アラーム → SNS → Gmail
+
+Lambda の標準ログを **メトリクスフィルター**が監視し、**タイムアウト**と **OOM 疑い**の文字列でカスタムメトリクスを増やす。**CloudWatch アラーム**がしきい値を超えたら **SNS トピック**へ publish し、**メールサブスク**先の **Gmail** に届く仕組み。
+
+```mermaid
+flowchart TB
+  subgraph L["Lambda 実行"]
+    LOG["stdout / REPORT<br/>Task timed out / Status:timeout / heap..."]
+  end
+  subgraph CWLogs["CloudWatch Logs"]
+    LG["ロググループ<br/>/aws/lambda/..."]
+    MF["メトリクスフィルター<br/>（同一ログに複数パターン可）"]
+  end
+  subgraph CM["カスタムメトリクス"]
+    NS["Namespace: KoeiClone/Phase2<br/>MetricName: ReceiverTimeout 等"]
+  end
+  subgraph AL["CloudWatch アラーム"]
+    ARM["閾値を超えたら ALARM"]
+  end
+  subgraph SNS["SNS"]
+    TOP["トピック<br/>koei-clone-（stage）-ops-alerts"]
+  end
+  subgraph mail["メール"]
+    GM["Gmail（OPS_ALERT_EMAIL）"]
+  end
+  LOG --> LG
+  LG --> MF
+  MF --> NS
+  NS --> ARM
+  ARM -->|"Publish"| TOP
+  TOP --> GM
+```
+
+**6 本のアラーム**（関数 × 種別）のイメージ:
+
+```mermaid
+flowchart TB
+  subgraph T["タイムアウト系メトリクス"]
+    t1[ReceiverTimeout]
+    t2[SchedulerTimeout]
+    t3[ProcessorTimeout]
+  end
+  subgraph O["OOM 系メトリクス"]
+    o1[ReceiverOOM]
+    o2[SchedulerOOM]
+    o3[ProcessorOOM]
+  end
+  subgraph SNS["SNS トピック（1 本に集約）"]
+    TOP["koei-clone-（stage）-ops-alerts"]
+  end
+  t1 --> TOP
+  t2 --> TOP
+  t3 --> TOP
+  o1 --> TOP
+  o2 --> TOP
+  o3 --> TOP
+```
+
+**検知パターン（例）**
+
+| 種別 | ログ側の目安 |
+|------|----------------|
+| タイムアウト | JSON の `Task timed out` 相当、または `REPORT` 行の `Status: timeout`（フィルターは両系に対応） |
+| OOM 疑い | `heap out of memory` 等 |
