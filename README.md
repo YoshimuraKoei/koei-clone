@@ -36,7 +36,7 @@
 
 koei-clone
 
-## プロジェクトについて
+## 概要
 
 Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将来の **ファインチューニング** や **RAG** に使える形式で保存するための **サーバーレス** バックエンドです。
 
@@ -49,6 +49,45 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 詳細は [ARCHITECTURE.md](ARCHITECTURE.md) を参照してください。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
+
+## 全体像
+
+```mermaid
+flowchart LR
+  subgraph users["利用者"]
+    U[ユーザー]
+  end
+
+  subgraph slack["Slack"]
+    S[ワークスペース / Events API]
+  end
+
+  subgraph aws["AWS"]
+    APIGW[API Gateway]
+    EB[EventBridge<br/>スケジュール]
+    R[Lambda: receiver]
+    SCH[Lambda: scheduler]
+    PRO[Lambda: processor]
+  end
+
+  subgraph google["Google"]
+    G[Gemini API]
+  end
+
+  subgraph data["データ"]
+    SB[(Supabase<br/>PostgreSQL + pgvector)]
+  end
+
+  U <--> S
+  S -->|POST /slack/events| APIGW --> R
+  EB --> SCH
+  EB --> PRO
+  R --> SB
+  SCH --> S
+  SCH --> G
+  PRO --> SB
+  PRO --> G
+```
 
 ## 環境
 
