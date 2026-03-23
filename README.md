@@ -27,7 +27,6 @@
 <div align="right">
     <a href="docs/cost.md"><strong>コスト見積もり »</strong></a>
 </div>
-<br />
 <div align="right">
     <a href="docs/task.md"><strong>タスク一覧 »</strong></a>
 </div>
@@ -65,19 +64,19 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 
 ## ディレクトリ構成
 
-```
+``` 
 .
 ├── ARCHITECTURE.md
 ├── README.md
-├── README_TEMPLATE.md
+├── serverless.cloudwatch.yml
 ├── serverless.yml
 ├── package.json
 ├── package-lock.json
+├── .env
 ├── tsconfig.json
-├── docs
-│   ├── core-image.md
-│   ├── input.md
-│   └── task.md
+├── sql
+│   ├── 001_create_daily_thought_logs.sql
+│   └── 002_add_slack_event_id.sql
 └── src
     ├── handlers
     │   ├── processor.ts
@@ -85,6 +84,7 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
     │   └── scheduler.ts
     └── lib
         ├── gemini.ts
+        ├── opsAlert.ts
         ├── slack.ts
         └── supabase.ts
 ```
@@ -99,39 +99,53 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 - AWS アカウントへデプロイする場合: AWS CLI の設定、および Serverless Framework の利用可能な認証情報
 - Slack アプリ、Supabase プロジェクト、Gemini API キー
 
-### パッケージのインストール
+### Slack
+
+- Basic Information: 
+    - Signing Secret の取得
+- Install Apps:
+    - Bot User Oauth Token の取得
+- OAuth & Permissions:
+    - ボットトークンのスコープ設定: `chat:write`, `groups:history`
+    - ユーザートークンのスコープ設定: `groups:history`
+- Event Subscriptions:
+    - Request URL に API Gateway の URL を入れる
+    - Subscribe to bot events: `message.groups`
+- Slack チャンネル:
+    - URL 後半から投稿先のチャンネル ID を取得 (ex. https://example.com/archives/XXXXXXXXXXX → XXXXXXXXXXX) 
+    - 運用保守チャンネル ID を取得
+
+### Supabase
+
+1. SQL Editor で [sql/001_create_daily_thought_logs.sql](/Users/yoshikoei98/Documents/koei-clone/sql/001_create_daily_thought_logs.sql) を実行
+2. 続けて [sql/002_add_slack_event_id.sql](/Users/yoshikoei98/Documents/koei-clone/sql/002_add_slack_event_id.sql) を実行
+
+- Project Settings: 
+    - Data API → API URL を取得
+    - API Keys → service role key を取得
+
+### Gemini
+
+- Gemini API キーを発行
+
+### パッケージインストール
 
 ```bash
 npm install
 ```
 
-### 型チェック
-
-```bash
-npm run build
-```
-
-### 環境変数
+### 環境変数の設定
 
 デプロイ前に、シェルまたは CI で [環境変数の一覧](#環境変数の一覧) を設定してください。`serverless.yml` は `${env:変数名}` 形式で参照します。
 
-### デプロイ（AWS）
+### AWS にデプロイ
 
 ```bash
+# Serverless CLI の serverless deploy と同等
 npm run deploy
 ```
 
-（Serverless CLI の `serverless deploy` と同等です。）
-
-### ローカルでの API エミュレーション（任意）
-
-```bash
-npm run offline
-```
-
-Slack の Request URL には ngrok 等でローカルにトンネルを張り、Events API のエンドポイントに合わせます。
-
-### 環境変数の一覧
+## 環境変数一覧
 
 | 変数名 | 役割 |
 | ------ | ---- |
@@ -143,11 +157,3 @@ Slack の Request URL には ngrok 等でローカルにトンネルを張り、
 | `SLACK_DAILY_CHANNEL_ID` | 定時投稿先 (プライベートチャンネルのチャンネル ID) |
 | `SLACK_OPS_CHANNEL_ID` | 運用保守先 (プライベートチャンネルのチャンネル ID) |
 | `OPS_ALERT_EMAIL` | 監視エラーの通知先メールアドレス |
-
-### コマンド一覧
-
-| npm スクリプト | 実行する処理 |
-| -------------- | ------------ |
-| `npm run build` | `tsc --noEmit`（型チェック） |
-| `npm run deploy` | `serverless deploy`（AWS へデプロイ） |
-| `npm run offline` | `serverless offline`（ローカルエミュレーション） |
