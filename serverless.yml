@@ -17,10 +17,28 @@ provider:
   runtime: nodejs22.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'ap-northeast-1'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - cloudwatch:GetMetricData
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - logs:StartQuery
+            - logs:GetQueryResults
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - lambda:GetFunctionConfiguration
+          Resource: '*'
   memorySize: 256   # 単位は MB
   timeout: 30
   logRetentionInDays: 3   # ログの保持期間は 3 日間
   environment:
+    SERVICE_NAME: ${self:service}
+    SERVICE_STAGE: ${self:provider.stage}
     SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET, ''}
     SLACK_BOT_TOKEN: ${env:SLACK_BOT_TOKEN, ''}
     GCP_PROJECT_ID: ${env:GCP_PROJECT_ID, ''}
@@ -76,9 +94,20 @@ functions:
           enabled: true
 
   # Google Cloud Monitoring から Vertex AI 利用状況を集計し、運用チャンネルへ定期投稿
-  opsReporter:
-    handler: src/handlers/opsReporter.handler
+  vertexAiOpsReporter:
+    handler: src/handlers/vertexAiOpsReporter.handler
     description: Weekly Vertex AI usage summary to Slack ops channel
+    reservedConcurrency: 5
+    timeout: 60
+    events:
+      - schedule:
+          # JST 火曜 00:00 (= UTC 月曜 15:00)
+          rate: cron(0 15 ? * MON *)
+          enabled: true
+
+  lambdaOpsReporter:
+    handler: src/handlers/lambdaOpsReporter.handler
+    description: Weekly Lambda usage summary to Slack ops channel
     reservedConcurrency: 5
     timeout: 60
     events:

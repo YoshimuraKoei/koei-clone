@@ -45,6 +45,7 @@ Resources:
   # どちらかで同じメトリクス名に載せる（複数フィルターは同一メトリクスに集約される）。
   ReceiverTimeoutMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ReceiverLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
       FilterPattern: '"Task timed out"'
@@ -55,6 +56,7 @@ Resources:
 
   ReceiverTimeoutMetricFilterReportLine:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ReceiverLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
       FilterPattern: Status timeout
@@ -65,6 +67,7 @@ Resources:
 
   SchedulerTimeoutMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: SchedulerLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
       FilterPattern: '"Task timed out"'
@@ -75,6 +78,7 @@ Resources:
 
   SchedulerTimeoutMetricFilterReportLine:
     Type: AWS::Logs::MetricFilter
+    DependsOn: SchedulerLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
       FilterPattern: Status timeout
@@ -85,6 +89,7 @@ Resources:
 
   ProcessorTimeoutMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ProcessorLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
       FilterPattern: '"Task timed out"'
@@ -95,6 +100,7 @@ Resources:
 
   ProcessorTimeoutMetricFilterReportLine:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ProcessorLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
       FilterPattern: Status timeout
@@ -103,29 +109,54 @@ Resources:
           MetricName: ProcessorTimeout
           MetricValue: '1'
 
-  OpsReporterTimeoutMetricFilter:
+  VertexAiOpsReporterTimeoutMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: VertexAiOpsReporterLogGroup
     Properties:
-      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-vertexAiOpsReporter
       FilterPattern: '"Task timed out"'
       MetricTransformations:
         - MetricNamespace: KoeiClone/Phase2
-          MetricName: OpsReporterTimeout
+          MetricName: VertexAiOpsReporterTimeout
           MetricValue: '1'
 
-  OpsReporterTimeoutMetricFilterReportLine:
+  VertexAiOpsReporterTimeoutMetricFilterReportLine:
     Type: AWS::Logs::MetricFilter
+    DependsOn: VertexAiOpsReporterLogGroup
     Properties:
-      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-vertexAiOpsReporter
       FilterPattern: Status timeout
       MetricTransformations:
         - MetricNamespace: KoeiClone/Phase2
-          MetricName: OpsReporterTimeout
+          MetricName: VertexAiOpsReporterTimeout
+          MetricValue: '1'
+
+  LambdaOpsReporterTimeoutMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: LambdaOpsReporterLogGroup
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-lambdaOpsReporter
+      FilterPattern: '"Task timed out"'
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: LambdaOpsReporterTimeout
+          MetricValue: '1'
+
+  LambdaOpsReporterTimeoutMetricFilterReportLine:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: LambdaOpsReporterLogGroup
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-lambdaOpsReporter
+      FilterPattern: Status timeout
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: LambdaOpsReporterTimeout
           MetricValue: '1'
 
   # --- OOM（heap out of memory）---
   ReceiverOOMMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ReceiverLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-receiver
       FilterPattern: heap out of memory
@@ -136,6 +167,7 @@ Resources:
 
   SchedulerOOMMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: SchedulerLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-scheduler
       FilterPattern: heap out of memory
@@ -146,6 +178,7 @@ Resources:
 
   ProcessorOOMMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: ProcessorLogGroup
     Properties:
       LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
       FilterPattern: heap out of memory
@@ -154,14 +187,26 @@ Resources:
           MetricName: ProcessorOOM
           MetricValue: '1'
 
-  OpsReporterOOMMetricFilter:
+  VertexAiOpsReporterOOMMetricFilter:
     Type: AWS::Logs::MetricFilter
+    DependsOn: VertexAiOpsReporterLogGroup
     Properties:
-      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-opsReporter
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-vertexAiOpsReporter
       FilterPattern: heap out of memory
       MetricTransformations:
         - MetricNamespace: KoeiClone/Phase2
-          MetricName: OpsReporterOOM
+          MetricName: VertexAiOpsReporterOOM
+          MetricValue: '1'
+
+  LambdaOpsReporterOOMMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: LambdaOpsReporterLogGroup
+    Properties:
+      LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-lambdaOpsReporter
+      FilterPattern: heap out of memory
+      MetricTransformations:
+        - MetricNamespace: KoeiClone/Phase2
+          MetricName: LambdaOpsReporterOOM
           MetricValue: '1'
 
   ReceiverTimeoutAlarm:
@@ -212,13 +257,29 @@ Resources:
       AlarmActions:
         - Ref: OpsAlertTopic
 
-  OpsReporterTimeoutAlarm:
+  VertexAiOpsReporterTimeoutAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: ${self:service}-${self:provider.stage}-opsReporter-timeout
-      AlarmDescription: Lambda opsReporter Task timed out（第二段階）
+      AlarmName: ${self:service}-${self:provider.stage}-vertexAiOpsReporter-timeout
+      AlarmDescription: Lambda vertexAiOpsReporter Task timed out（第二段階）
       Namespace: KoeiClone/Phase2
-      MetricName: OpsReporterTimeout
+      MetricName: VertexAiOpsReporterTimeout
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  LambdaOpsReporterTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-lambdaOpsReporter-timeout
+      AlarmDescription: Lambda lambdaOpsReporter Task timed out（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: LambdaOpsReporterTimeout
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1
@@ -276,13 +337,29 @@ Resources:
       AlarmActions:
         - Ref: OpsAlertTopic
 
-  OpsReporterOOMAlarm:
+  VertexAiOpsReporterOOMAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: ${self:service}-${self:provider.stage}-opsReporter-oom
-      AlarmDescription: Lambda opsReporter heap OOM 疑い（第二段階）
+      AlarmName: ${self:service}-${self:provider.stage}-vertexAiOpsReporter-oom
+      AlarmDescription: Lambda vertexAiOpsReporter heap OOM 疑い（第二段階）
       Namespace: KoeiClone/Phase2
-      MetricName: OpsReporterOOM
+      MetricName: VertexAiOpsReporterOOM
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - Ref: OpsAlertTopic
+
+  LambdaOpsReporterOOMAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ${self:service}-${self:provider.stage}-lambdaOpsReporter-oom
+      AlarmDescription: Lambda lambdaOpsReporter heap OOM 疑い（第二段階）
+      Namespace: KoeiClone/Phase2
+      MetricName: LambdaOpsReporterOOM
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1

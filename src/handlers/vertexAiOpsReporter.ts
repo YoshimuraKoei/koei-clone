@@ -1,6 +1,7 @@
 import type { Handler } from 'aws-lambda';
 import { getVertexAiUsageSummary, type ModelUsageSummary } from '../lib/googleMonitoring';
 import { notifyOpsError } from '../lib/opsAlert';
+import { recentDaysWindowJst } from '../lib/reportingWindow';
 import { postSlackMessage } from '../lib/slack';
 
 const LOOKBACK_DAYS = 7;
@@ -24,26 +25,6 @@ function formatUsd(value: number): string {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   }).format(value);
-}
-
-function recentWeekWindowJst(now: Date): { start: Date; end: Date; label: string } {
-  const dateLabel = (date: Date): string => {
-    return new Intl.DateTimeFormat('ja-JP', {
-      timeZone: 'Asia/Tokyo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(date);
-  };
-
-  const end = now;
-  const start = new Date(end.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-
-  return {
-    start,
-    end,
-    label: `${dateLabel(start)} - ${dateLabel(end)} の直近 ${LOOKBACK_DAYS} 日`,
-  };
 }
 
 function estimateUsd(params: {
@@ -103,10 +84,10 @@ export const handler: Handler = async () => {
     const channelId = process.env.SLACK_OPS_CHANNEL_ID?.trim();
 
     if (!channelId) {
-      throw new Error('opsReporter: SLACK_OPS_CHANNEL_ID が未設定です。');
+      throw new Error('vertexAiOpsReporter: SLACK_OPS_CHANNEL_ID が未設定です。');
     }
 
-    const window = recentWeekWindowJst(new Date());
+    const window = recentDaysWindowJst(new Date(), LOOKBACK_DAYS);
     const usage = await getVertexAiUsageSummary(window.start, window.end);
     const lines = buildSummaryLines({ label: window.label, usage });
 
@@ -118,7 +99,7 @@ export const handler: Handler = async () => {
   } catch (error) {
     console.error(error);
     await notifyOpsError({
-      functionName: 'opsReporter',
+      functionName: 'vertexAiOpsReporter',
       error,
     });
     throw error;

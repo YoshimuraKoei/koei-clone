@@ -45,7 +45,8 @@ Slack での対話を **Supabase（PostgreSQL + pgvector）** に蓄積し、将
 - **receiver**: Slack Events API（メッセージ受信・保存）
 - **scheduler**: 定時の問いかけ（属性付きテンプレート + Vertex AI で文面生成 → Slack 投稿）
 - **processor**: 要約・埋め込みベクトル付与（**1 日 1 回**・未処理最大 10 件/回）
-- **opsReporter**: Cloud Monitoring から Vertex AI 利用状況を集計し、運用保守チャンネルへ定期投稿
+- **vertexAiOpsReporter**: Cloud Monitoring から Vertex AI 利用状況を集計し、運用保守チャンネルへ定期投稿
+- **lambdaOpsReporter**: CloudWatch から Lambda 利用状況を集計し、運用保守チャンネルへ定期投稿
 
 詳細は [ARCHITECTURE.md](ARCHITECTURE.md) を参照してください。
 
@@ -127,16 +128,19 @@ flowchart LR
 │   └── 002_add_slack_event_id.sql
 └── src
     ├── handlers
-    │   ├── opsReporter.ts
+    │   ├── vertexAiOpsReporter.ts
     │   ├── processor.ts
     │   ├── receiver.ts
-    │   └── scheduler.ts
+    │   ├── scheduler.ts
+    │   └── lambdaOpsReporter.ts
     └── lib
+        ├── awsMonitoring.ts
         ├── gemini.ts
         ├── googleCloud.ts
         ├── googleMonitoring.ts
         ├── opsAlert.ts
         ├── promptCatalog.ts
+        ├── reportingWindow.ts
         ├── slack.ts
         └── supabase.ts
 ```

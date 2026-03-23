@@ -11,6 +11,9 @@
     "offline": "serverless offline"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.883.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.883.0",
+    "@aws-sdk/client-lambda": "^3.883.0",
     "@slack/bolt": "^3.22.0",
     "@supabase/supabase-js": "^2.49.0",
     "google-auth-library": "^9.15.1"
